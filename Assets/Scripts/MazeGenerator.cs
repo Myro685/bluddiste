@@ -7,112 +7,127 @@ public class MazeGenerator : MonoBehaviour
 {
     [SerializeField]
     private MazeCell mazeCellPrefab;
+
     [SerializeField]
     private int mazeWidth;
+
     [SerializeField]
     private int mazeDepth;
 
+    [SerializeField]
+    public float cellSize = 1f;
+
     private MazeCell[,] mazeGrid;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         mazeGrid = new MazeCell[mazeWidth, mazeDepth];
-        
-        for(int x = 0; x < mazeWidth; x++){
-            for(int z = 0; z < mazeDepth; z++){
-                mazeGrid[x, z] = Instantiate(mazeCellPrefab, new Vector3(x, 0, z), Quaternion.identity);
+
+        for (int x = 0; x < mazeWidth; x++)
+        {
+            for (int z = 0; z < mazeDepth; z++)
+            {
+                Vector3 position = new Vector3(x * cellSize, 0, z * cellSize);
+                mazeGrid[x, z] = Instantiate(mazeCellPrefab, position, Quaternion.identity);
             }
         }
 
-        GenerateMaze(null, mazeGrid[0,0]);
+        GenerateMaze(null, mazeGrid[0, 0]);
     }
 
-    private void GenerateMaze(MazeCell previousCell, MazeCell currentCell){
+    private void GenerateMaze(MazeCell previousCell, MazeCell currentCell)
+    {
         currentCell.Visit();
         ClearWalls(previousCell, currentCell);
 
         MazeCell nextCell;
 
-        do{
+        do
+        {
             nextCell = GetNextUnvisitedCell(currentCell);
 
-            if(nextCell != null){
+            if (nextCell != null)
+            {
                 GenerateMaze(currentCell, nextCell);
             }
+
         } while (nextCell != null);
-        
     }
 
-    private MazeCell GetNextUnvisitedCell(MazeCell currentCell){
+    private MazeCell GetNextUnvisitedCell(MazeCell currentCell)
+    {
         var unvisitedCells = GetUnvisitedCell(currentCell);
-
         return unvisitedCells.OrderBy(_ => Random.Range(1, 10)).FirstOrDefault();
     }
 
-    private IEnumerable<MazeCell> GetUnvisitedCell(MazeCell currentCell){
-        int x = (int)currentCell.transform.position.x;
-        int z = (int)currentCell.transform.position.z;
+    private IEnumerable<MazeCell> GetUnvisitedCell(MazeCell currentCell)
+    {
+        int x = Mathf.RoundToInt(currentCell.transform.position.x / cellSize);
+        int z = Mathf.RoundToInt(currentCell.transform.position.z / cellSize);
 
-        if(x + 1 < mazeWidth){
+        if (x + 1 < mazeWidth)
+        {
             var cellToRight = mazeGrid[x + 1, z];
-
-            if(cellToRight.IsVisited == false){
+            if (!cellToRight.IsVisited)
                 yield return cellToRight;
-            }
         }
-        if(x - 1 >= 0){
+
+        if (x - 1 >= 0)
+        {
             var cellToLeft = mazeGrid[x - 1, z];
-
-            if(cellToLeft.IsVisited == false){
+            if (!cellToLeft.IsVisited)
                 yield return cellToLeft;
-            }
         }
-        if(z + 1 < mazeDepth){
+
+        if (z + 1 < mazeDepth)
+        {
             var cellToFront = mazeGrid[x, z + 1];
-
-            if(cellToFront.IsVisited == false){
+            if (!cellToFront.IsVisited)
                 yield return cellToFront;
-            }
         }
-        if(z - 1 >= 0){
-            var cellToBack = mazeGrid[x, z - 1];
 
-            if(cellToBack.IsVisited == false){
+        if (z - 1 >= 0)
+        {
+            var cellToBack = mazeGrid[x, z - 1];
+            if (!cellToBack.IsVisited)
                 yield return cellToBack;
-            }
         }
     }
 
-    private void ClearWalls(MazeCell previousCell, MazeCell currentCell){
-        if(previousCell == null){
+    private void ClearWalls(MazeCell previousCell, MazeCell currentCell)
+    {
+        if (previousCell == null)
             return;
-        }
-        if(previousCell.transform.position.x < currentCell.transform.position.x){
+
+        int prevX = Mathf.RoundToInt(previousCell.transform.position.x / cellSize);
+        int prevZ = Mathf.RoundToInt(previousCell.transform.position.z / cellSize);
+        int currX = Mathf.RoundToInt(currentCell.transform.position.x / cellSize);
+        int currZ = Mathf.RoundToInt(currentCell.transform.position.z / cellSize);
+
+        if (prevX < currX)
+        {
             previousCell.ClearRightWall();
             currentCell.ClearLeftWall();
             return;
         }
-        if(previousCell.transform.position.x > currentCell.transform.position.x){
+        if (prevX > currX)
+        {
             previousCell.ClearLeftWall();
             currentCell.ClearRightWall();
             return;
         }
-        if(previousCell.transform.position.z < currentCell.transform.position.z){
+        if (prevZ < currZ)
+        {
             previousCell.ClearFrontWall();
             currentCell.ClearBackWall();
             return;
         }
-        if(previousCell.transform.position.z > currentCell.transform.position.z){
+        if (prevZ > currZ)
+        {
             previousCell.ClearBackWall();
             currentCell.ClearFrontWall();
             return;
         }
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
 }
