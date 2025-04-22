@@ -40,6 +40,8 @@ public class MazeGenerator : MonoBehaviour
         currentCell.Visit();
         ClearWalls(previousCell, currentCell);
 
+        TryCreateRoom(currentCell);
+
         MazeCell nextCell;
 
         do
@@ -52,6 +54,52 @@ public class MazeGenerator : MonoBehaviour
             }
 
         } while (nextCell != null);
+    }
+
+    private void TryCreateRoom(MazeCell currentCell)
+    {
+        if (Random.value > 0.1f) return; // 10% šance na vytvoření místnosti
+
+        int x = Mathf.RoundToInt(currentCell.transform.position.x / cellSize);
+        int z = Mathf.RoundToInt(currentCell.transform.position.z / cellSize);
+
+        // Seznam buněk v místnosti
+        List<MazeCell> roomCells = new List<MazeCell>();
+
+        for (int dx = 0; dx <= 1; dx++)
+        {
+            for (int dz = 0; dz <= 1; dz++)
+            {
+                int nx = x + dx;
+                int nz = z + dz;
+                if (nx < mazeWidth && nz < mazeDepth)
+                {
+                    MazeCell cell = mazeGrid[nx, nz];
+                    cell.Visit();
+                    roomCells.Add(cell);
+
+                    // Zboření zdí pro vytvoření místnosti
+                    if (dx == 1)
+                    {
+                        cell.ClearLeftWall();
+                        mazeGrid[nx - 1, nz].ClearRightWall();
+                    }
+                    if (dz == 1)
+                    {
+                        cell.ClearBackWall();
+                        mazeGrid[nx, nz - 1].ClearFrontWall();
+                    }
+                }
+            }
+        }
+
+        // Generování jednoho lockeru v místnosti s 20% pravděpodobností
+        if (Random.value < 0.2f && roomCells.Count > 0)
+        {
+            // Vybereme náhodnou buňku z místnosti
+            MazeCell selectedCell = roomCells[Random.Range(0, roomCells.Count)];
+            selectedCell.CreateLocker();
+        }
     }
 
     private MazeCell GetNextUnvisitedCell(MazeCell currentCell)
@@ -129,5 +177,4 @@ public class MazeGenerator : MonoBehaviour
             return;
         }
     }
-
 }
