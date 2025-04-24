@@ -1,180 +1,291 @@
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
+using UnityEngine.AI; // Přidáme pro NavMeshSurface
+using System.Collections.Generic;
+using Unity.AI.Navigation;
 
 public class MazeGenerator : MonoBehaviour
 {
-    [SerializeField]
-    private MazeCell mazeCellPrefab;
-
-    [SerializeField]
-    private int mazeWidth;
-
-    [SerializeField]
-    private int mazeDepth;
-
-    [SerializeField]
-    public float cellSize = 1f;
-
-    private MazeCell[,] mazeGrid;
+    public int width = 20;
+    public int height = 20;
+    public int corridorWidth = 2;
+    public int numberOfRooms = 3;
+    public int minRoomSize = 3;
+    public int maxRoomSize = 5;
+    public GameObject wallPrefab;
+    public GameObject floorPrefab;
+    public GameObject collectiblePrefab;
+    public GameObject enemyPrefab;
+    public GameObject chairPrefab;
+    public int numberOfCollectibles = 5;
+    public int numberOfEnemies = 3;
+    public int numberOfChairs = 2;
+    private int[,] maze;
+    private List<Vector2Int> freeCells;
+    private NavMeshSurface navMeshSurface; // Reference na NavMeshSurface
 
     void Start()
     {
-        mazeGrid = new MazeCell[mazeWidth, mazeDepth];
-
-        for (int x = 0; x < mazeWidth; x++)
+        // Získáme NavMeshSurface
+        navMeshSurface = GetComponent<NavMeshSurface>();
+        if (navMeshSurface == null)
         {
-            for (int z = 0; z < mazeDepth; z++)
-            {
-                Vector3 position = new Vector3(x * cellSize, 0, z * cellSize);
-                mazeGrid[x, z] = Instantiate(mazeCellPrefab, position, Quaternion.identity);
-            }
+            Debug.LogError("NavMeshSurface není připojený k objektu Maze!");
+            return;
         }
 
-        GenerateMaze(null, mazeGrid[0, 0]);
+        GenerateMaze();
+        GenerateRooms();
+        BuildMaze();
+        PlaceCollectibles();
+        PlaceEnemies();
+        PlaceChairs();
+
+        // Aktualizujeme NavMesh po vygenerování bludiště
+        UpdateNavMesh();
     }
 
-    private void GenerateMaze(MazeCell previousCell, MazeCell currentCell)
+    void GenerateMaze()
     {
-        currentCell.Visit();
-        ClearWalls(previousCell, currentCell);
+        int gridWidth = (width / corridorWidth) + 2;
+        int gridHeight = (height / corridorWidth) + 2;
 
-        TryCreateRoom(currentCell);
+        maze = new int[gridWidth, gridHeight];
+        freeCells = new List<Vector2Int>();
+        for (int x = 0; x < gridWidth; x++)
+            for (int y = 0; y < gridHeight; y++)
+                maze[x, y] = 1;
 
-        MazeCell nextCell;
+        RecursiveBacktrack(1, 1);
 
-        do
+        for (int x = 0; x < gridWidth; x++)
         {
-            nextCell = GetNextUnvisitedCell(currentCell);
+            maze[x, 0] = 1;
+            maze[x, gridHeight - 1] = 1;
+        }
+        for (int y = 0; y < gridHeight; y++)
+        {
+            maze[0, y] = 1;
+            maze[gridWidth - 1, y] = 1;
+        }
 
-            if (nextCell != null)
+        UpdateFreeCells();
+    }
+
+    void GenerateRooms()
+    {
+        for (int i = 0; i < numberOfRooms; i++)
+        {
+            int roomWidth = Random.Range(minRoomSize, maxRoomSize + 1);
+            int roomHeight = Random.Range(minRoomSize, maxRoomSize + 1);
+            int roomX = Random.Range(1, maze.GetLength(0) - roomWidth - 1);
+            int roomY = Random.Range(1, maze.GetLength(1) - roomHeight - 1);
+
+            for (int x = roomX; x < roomX + roomWidth; x++)
             {
-                GenerateMaze(currentCell, nextCell);
+                for (int y = roomY; y < roomY + roomHeight; y++)
+                {
+                    maze[x, y] = 0;
+                }
             }
 
-        } while (nextCell != null);
+            ConnectRoomToMaze(roomX, roomY, roomWidth, roomHeight);
+        }
+
+        UpdateFreeCells();
     }
 
-    private void TryCreateRoom(MazeCell currentCell)
+    void ConnectRoomToMaze(int roomX, int roomY, int roomWidth, int roomHeight)
     {
-        if (Random.value > 0.1f) return; // 10% šance na vytvoření místnosti
+        int side = Random.Range(0, 4);
+        int connectX, connectY;
 
-        int x = Mathf.RoundToInt(currentCell.transform.position.x / cellSize);
-        int z = Mathf.RoundToInt(currentCell.transform.position.z / cellSize);
-
-        // Seznam buněk v místnosti
-        List<MazeCell> roomCells = new List<MazeCell>();
-
-        for (int dx = 0; dx <= 1; dx++)
+        if (side == 0) // Sever
         {
-            for (int dz = 0; dz <= 1; dz++)
-            {
-                int nx = x + dx;
-                int nz = z + dz;
-                if (nx < mazeWidth && nz < mazeDepth)
-                {
-                    MazeCell cell = mazeGrid[nx, nz];
-                    cell.Visit();
-                    roomCells.Add(cell);
+            connectX = roomX + Random.Range(0, roomWidth);
+            connectY = roomY - 1;
+        }
+        else if (side == 1) // Jih
+        {
+            connectX = roomX + Random.Range(0, roomWidth);
+            connectY = roomY + roomHeight;
+        }
+        else if (side == 2) // Západ
+        {
+            connectX = roomX - 1;
+            connectY = roomY + Random.Range(0, roomHeight);
+        }
+        else // Východ
+        {
+            connectX = roomX + roomWidth;
+            connectY = roomY + Random.Range(0, roomHeight);
+        }
 
-                    // Zboření zdí pro vytvoření místnosti
-                    if (dx == 1)
+        if (connectX >= 0 && connectX < maze.GetLength(0) && connectY >= 0 && connectY < maze.GetLength(1))
+        {
+            maze[connectX, connectY] = 0;
+        }
+    }
+
+    void RecursiveBacktrack(int x, int y)
+    {
+        maze[x, y] = 0;
+
+        int[] directions = { 0, 1, 2, 3 };
+        Shuffle(directions);
+
+        for (int i = 0; i < directions.Length; i++)
+        {
+            int dx = 0, dy = 0;
+            if (directions[i] == 0) { dx = 0; dy = 2; }
+            else if (directions[i] == 1) { dx = 0; dy = -2; }
+            else if (directions[i] == 2) { dx = -2; dy = 0; }
+            else if (directions[i] == 3) { dx = 2; dy = 0; }
+
+            int newX = x + dx;
+            int newY = y + dy;
+
+            if (newX >= 1 && newX < maze.GetLength(0) - 1 && newY >= 1 && newY < maze.GetLength(1) - 1 && maze[newX, newY] == 1)
+            {
+                maze[x + dx / 2, y + dy / 2] = 0;
+                RecursiveBacktrack(newX, newY);
+            }
+        }
+    }
+
+    void UpdateFreeCells()
+    {
+        freeCells.Clear();
+
+        for (int x = corridorWidth; x < width + corridorWidth; x++)
+        {
+            for (int y = corridorWidth; y < height + corridorWidth; y++)
+            {
+                int gridX = (x - corridorWidth) / corridorWidth;
+                int gridY = (y - corridorWidth) / corridorWidth;
+
+                if (gridX >= 0 && gridX < maze.GetLength(0) && gridY >= 0 && gridY < maze.GetLength(1) && maze[gridX, gridY] == 0)
+                {
+                    bool isNearWall = false;
+                    for (int dx = -1; dx <= 1; dx++)
                     {
-                        cell.ClearLeftWall();
-                        mazeGrid[nx - 1, nz].ClearRightWall();
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            int checkX = gridX + dx;
+                            int checkY = gridY + dy;
+                            if (checkX >= 0 && checkX < maze.GetLength(0) && checkY >= 0 && checkY < maze.GetLength(1) && maze[checkX, checkY] == 1)
+                            {
+                                isNearWall = true;
+                                break;
+                            }
+                        }
+                        if (isNearWall) break;
                     }
-                    if (dz == 1)
+
+                    if (!isNearWall)
                     {
-                        cell.ClearBackWall();
-                        mazeGrid[nx, nz - 1].ClearFrontWall();
+                        freeCells.Add(new Vector2Int(x, y));
                     }
                 }
             }
         }
+    }
 
-        // Generování jednoho lockeru v místnosti s 20% pravděpodobností
-        if (Random.value < 0.2f && roomCells.Count > 0)
+    void Shuffle(int[] array)
+    {
+        for (int i = array.Length - 1; i > 0; i--)
         {
-            // Vybereme náhodnou buňku z místnosti
-            MazeCell selectedCell = roomCells[Random.Range(0, roomCells.Count)];
-            selectedCell.CreateLocker();
+            int j = Random.Range(0, i + 1);
+            int temp = array[i];
+            array[i] = array[j];
+            array[j] = temp;
         }
     }
 
-    private MazeCell GetNextUnvisitedCell(MazeCell currentCell)
+    void BuildMaze()
     {
-        var unvisitedCells = GetUnvisitedCell(currentCell);
-        return unvisitedCells.OrderBy(_ => Random.Range(1, 10)).FirstOrDefault();
-    }
-
-    private IEnumerable<MazeCell> GetUnvisitedCell(MazeCell currentCell)
-    {
-        int x = Mathf.RoundToInt(currentCell.transform.position.x / cellSize);
-        int z = Mathf.RoundToInt(currentCell.transform.position.z / cellSize);
-
-        if (x + 1 < mazeWidth)
+        for (int x = 0; x < width + 2 * corridorWidth; x++)
         {
-            var cellToRight = mazeGrid[x + 1, z];
-            if (!cellToRight.IsVisited)
-                yield return cellToRight;
-        }
+            for (int y = 0; y < height + 2 * corridorWidth; y++)
+            {
+                int gridX = (x - corridorWidth) / corridorWidth;
+                int gridY = (y - corridorWidth) / corridorWidth;
 
-        if (x - 1 >= 0)
-        {
-            var cellToLeft = mazeGrid[x - 1, z];
-            if (!cellToLeft.IsVisited)
-                yield return cellToLeft;
-        }
+                bool isBorder = x < corridorWidth || x >= width + corridorWidth || y < corridorWidth || y >= height + corridorWidth;
 
-        if (z + 1 < mazeDepth)
-        {
-            var cellToFront = mazeGrid[x, z + 1];
-            if (!cellToFront.IsVisited)
-                yield return cellToFront;
-        }
-
-        if (z - 1 >= 0)
-        {
-            var cellToBack = mazeGrid[x, z - 1];
-            if (!cellToBack.IsVisited)
-                yield return cellToBack;
+                if (isBorder || (gridX >= 0 && gridX < maze.GetLength(0) && gridY >= 0 && gridY < maze.GetLength(1) && maze[gridX, gridY] == 1))
+                {
+                    Vector3 pos = new Vector3(x, 1, y);
+                    GameObject wall = Instantiate(wallPrefab, pos, Quaternion.identity, transform);
+                    wall.tag = "Wall";
+                }
+                else
+                {
+                    if (floorPrefab != null)
+                    {
+                        Vector3 pos = new Vector3(x, 0, y);
+                        Instantiate(floorPrefab, pos, Quaternion.identity, transform);
+                    }
+                }
+            }
         }
     }
 
-    private void ClearWalls(MazeCell previousCell, MazeCell currentCell)
+    void PlaceCollectibles()
     {
-        if (previousCell == null)
-            return;
+        if (collectiblePrefab == null || freeCells.Count == 0) return;
 
-        int prevX = Mathf.RoundToInt(previousCell.transform.position.x / cellSize);
-        int prevZ = Mathf.RoundToInt(previousCell.transform.position.z / cellSize);
-        int currX = Mathf.RoundToInt(currentCell.transform.position.x / cellSize);
-        int currZ = Mathf.RoundToInt(currentCell.transform.position.z / cellSize);
+        for (int i = 0; i < numberOfCollectibles && freeCells.Count > 0; i++)
+        {
+            int randomIndex = Random.Range(0, freeCells.Count);
+            Vector2Int cell = freeCells[randomIndex];
+            freeCells.RemoveAt(randomIndex);
 
-        if (prevX < currX)
-        {
-            previousCell.ClearRightWall();
-            currentCell.ClearLeftWall();
-            return;
+            Vector3 pos = new Vector3(cell.x, 0.5f, cell.y);
+            Instantiate(collectiblePrefab, pos, Quaternion.identity, transform);
         }
-        if (prevX > currX)
+    }
+
+    void PlaceEnemies()
+    {
+        if (enemyPrefab == null || freeCells.Count == 0) return;
+
+        for (int i = 0; i < numberOfEnemies && freeCells.Count > 0; i++)
         {
-            previousCell.ClearLeftWall();
-            currentCell.ClearRightWall();
-            return;
+            int randomIndex = Random.Range(0, freeCells.Count);
+            Vector2Int cell = freeCells[randomIndex];
+            freeCells.RemoveAt(randomIndex);
+
+            Vector3 pos = new Vector3(cell.x, 1f, cell.y);
+            Instantiate(enemyPrefab, pos, Quaternion.identity, transform);
         }
-        if (prevZ < currZ)
+    }
+
+    void PlaceChairs()
+    {
+        if (chairPrefab == null || freeCells.Count == 0) return;
+
+        for (int i = 0; i < numberOfChairs && freeCells.Count > 0; i++)
         {
-            previousCell.ClearFrontWall();
-            currentCell.ClearBackWall();
-            return;
+            int randomIndex = Random.Range(0, freeCells.Count);
+            Vector2Int cell = freeCells[randomIndex];
+            freeCells.RemoveAt(randomIndex);
+
+            Vector3 pos = new Vector3(cell.x, 1f, cell.y);
+            Instantiate(chairPrefab, pos, Quaternion.identity, transform);
         }
-        if (prevZ > currZ)
+    }
+
+    void UpdateNavMesh()
+    {
+        if (navMeshSurface != null)
         {
-            previousCell.ClearBackWall();
-            currentCell.ClearFrontWall();
-            return;
+            navMeshSurface.BuildNavMesh();
+            Debug.Log("NavMesh byl aktualizován!");
         }
+    }
+
+    public List<Vector2Int> GetFreeCells()
+    {
+        return new List<Vector2Int>(freeCells);
     }
 }
