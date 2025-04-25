@@ -4,23 +4,23 @@ using System.Collections.Generic;
 
 public class EnemyAI : MonoBehaviour
 {
-    public float detectionRange = 5f; // Dosah detekce hráče
-    public float chaseSpeed = 4f; // Rychlost při pronásledování
-    public float patrolSpeed = 3f; // Rychlost při hlídkování
-    public float patrolWaitTime = 2f; // Čas čekání na hlídce
-    public float attackRange = 1f; // Vzdálenost pro útok
-    public float attackDamage = 10f; // Poškození při útoku
-    public float attackCooldown = 1f; // Čas mezi útoky
+    public float detectionRange = 5f;
+    public float chaseSpeed = 4f;
+    public float patrolSpeed = 3f;
+    public float patrolWaitTime = 2f;
+    public float attackRange = 1f;
+    public float attackDamage = 10f;
+    public float attackCooldown = 1f;
 
-    private Transform player; // Reference na hráče
-    private NavMeshAgent agent; // Reference na NavMeshAgent
-    private PlayerController playerController; // Reference na skript hráče
-    private Vector3 targetPosition; // Cílová pozice pro hlídkování
-    private float waitTimer; // Časovač pro čekání na hlídce
-    private bool isChasing; // Zda nepřítel pronásleduje hráče
-    private bool wasChasingLastFrame; // Sledování, zda nepřítel pronásledoval v posledním snímku
-    private float lastAttackTime; // Čas posledního útoku
-    private List<Vector2Int> patrolPoints; // Seznam bodů pro hlídkování
+    private Transform player;
+    private NavMeshAgent agent;
+    private PlayerController playerController;
+    private Vector3 targetPosition;
+    private float waitTimer;
+    private bool isChasing;
+    private bool wasChasingLastFrame;
+    private float lastAttackTime;
+    private List<Vector2Int> patrolPoints;
 
     void Start()
     {
@@ -29,7 +29,6 @@ public class EnemyAI : MonoBehaviour
         playerController = player.GetComponent<PlayerController>();
         patrolPoints = GameObject.Find("Maze").GetComponent<MazeGenerator>().GetFreeCells();
 
-        // Kontrola, zda máme patrolPoints
         if (patrolPoints == null || patrolPoints.Count == 0)
         {
             Debug.LogWarning("Nepřítel nemá žádné body pro hlídkování!");
@@ -46,7 +45,6 @@ public class EnemyAI : MonoBehaviour
     {
         if (patrolPoints == null || patrolPoints.Count == 0) return;
 
-        // Detekce hráče
         bool canSeePlayer = CanSeePlayer();
         if (canSeePlayer)
         {
@@ -135,7 +133,6 @@ public class EnemyAI : MonoBehaviour
             targetPosition = new Vector3(patrolPoint.x, transform.position.y, patrolPoint.y);
             waitTimer = patrolWaitTime;
 
-            // Zajistíme, že cíl je na NavMesh
             NavMeshHit hit;
             if (NavMesh.SamplePosition(targetPosition, out hit, 2f, NavMesh.AllAreas))
             {
@@ -143,7 +140,6 @@ public class EnemyAI : MonoBehaviour
             }
             else
             {
-                // Pokud cíl není na NavMesh, vybereme jiný
                 SetNewPatrolTarget();
             }
         }
@@ -153,5 +149,6 @@ public class EnemyAI : MonoBehaviour
     {
         lastAttackTime = Time.time;
         Debug.Log("Nepřítel útočí na hráče! Poškození: " + attackDamage);
+        playerController.TakeDamage(attackDamage); // Poškodíme hráče
     }
 }

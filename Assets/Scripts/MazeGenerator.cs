@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.AI; // Přidáme pro NavMeshSurface
+using UnityEngine.AI;
 using System.Collections.Generic;
 using Unity.AI.Navigation;
 
@@ -12,20 +12,19 @@ public class MazeGenerator : MonoBehaviour
     public int minRoomSize = 3;
     public int maxRoomSize = 5;
     public GameObject wallPrefab;
-    public GameObject floorPrefab;
     public GameObject collectiblePrefab;
     public GameObject enemyPrefab;
-    public GameObject chairPrefab;
+    public GameObject tablePrefab;
     public int numberOfCollectibles = 5;
     public int numberOfEnemies = 3;
-    public int numberOfChairs = 2;
+    public int numberOfTables = 2;
     private int[,] maze;
     private List<Vector2Int> freeCells;
-    private NavMeshSurface navMeshSurface; // Reference na NavMeshSurface
+    private List<RectInt> rooms;
+    private NavMeshSurface navMeshSurface;
 
     void Start()
     {
-        // Získáme NavMeshSurface
         navMeshSurface = GetComponent<NavMeshSurface>();
         if (navMeshSurface == null)
         {
@@ -33,6 +32,7 @@ public class MazeGenerator : MonoBehaviour
             return;
         }
 
+        rooms = new List<RectInt>();
         GenerateMaze();
         GenerateRooms();
         BuildMaze();
@@ -40,7 +40,6 @@ public class MazeGenerator : MonoBehaviour
         PlaceEnemies();
         PlaceChairs();
 
-        // Aktualizujeme NavMesh po vygenerování bludiště
         UpdateNavMesh();
     }
 
@@ -80,6 +79,8 @@ public class MazeGenerator : MonoBehaviour
             int roomX = Random.Range(1, maze.GetLength(0) - roomWidth - 1);
             int roomY = Random.Range(1, maze.GetLength(1) - roomHeight - 1);
 
+            rooms.Add(new RectInt(roomX, roomY, roomWidth, roomHeight));
+
             for (int x = roomX; x < roomX + roomWidth; x++)
             {
                 for (int y = roomY; y < roomY + roomHeight; y++)
@@ -99,22 +100,22 @@ public class MazeGenerator : MonoBehaviour
         int side = Random.Range(0, 4);
         int connectX, connectY;
 
-        if (side == 0) // Sever
+        if (side == 0)
         {
             connectX = roomX + Random.Range(0, roomWidth);
             connectY = roomY - 1;
         }
-        else if (side == 1) // Jih
+        else if (side == 1)
         {
             connectX = roomX + Random.Range(0, roomWidth);
             connectY = roomY + roomHeight;
         }
-        else if (side == 2) // Západ
+        else if (side == 2)
         {
             connectX = roomX - 1;
             connectY = roomY + Random.Range(0, roomHeight);
         }
-        else // Východ
+        else
         {
             connectX = roomX + roomWidth;
             connectY = roomY + Random.Range(0, roomHeight);
@@ -156,6 +157,7 @@ public class MazeGenerator : MonoBehaviour
     {
         freeCells.Clear();
 
+        // Upravíme logiku tak, aby zahrnovala všechny volné buňky (včetně chodeb)
         for (int x = corridorWidth; x < width + corridorWidth; x++)
         {
             for (int y = corridorWidth; y < height + corridorWidth; y++)
@@ -165,26 +167,7 @@ public class MazeGenerator : MonoBehaviour
 
                 if (gridX >= 0 && gridX < maze.GetLength(0) && gridY >= 0 && gridY < maze.GetLength(1) && maze[gridX, gridY] == 0)
                 {
-                    bool isNearWall = false;
-                    for (int dx = -1; dx <= 1; dx++)
-                    {
-                        for (int dy = -1; dy <= 1; dy++)
-                        {
-                            int checkX = gridX + dx;
-                            int checkY = gridY + dy;
-                            if (checkX >= 0 && checkX < maze.GetLength(0) && checkY >= 0 && checkY < maze.GetLength(1) && maze[checkX, checkY] == 1)
-                            {
-                                isNearWall = true;
-                                break;
-                            }
-                        }
-                        if (isNearWall) break;
-                    }
-
-                    if (!isNearWall)
-                    {
-                        freeCells.Add(new Vector2Int(x, y));
-                    }
+                    freeCells.Add(new Vector2Int(x, y));
                 }
             }
         }
@@ -218,14 +201,6 @@ public class MazeGenerator : MonoBehaviour
                     GameObject wall = Instantiate(wallPrefab, pos, Quaternion.identity, transform);
                     wall.tag = "Wall";
                 }
-                else
-                {
-                    if (floorPrefab != null)
-                    {
-                        Vector3 pos = new Vector3(x, 0, y);
-                        Instantiate(floorPrefab, pos, Quaternion.identity, transform);
-                    }
-                }
             }
         }
     }
@@ -238,7 +213,7 @@ public class MazeGenerator : MonoBehaviour
         {
             int randomIndex = Random.Range(0, freeCells.Count);
             Vector2Int cell = freeCells[randomIndex];
-            freeCells.RemoveAt(randomIndex);
+            freeCells.RemoveAt(randomIndex); // Odebereme buňku, aby se předešlo překrytí
 
             Vector3 pos = new Vector3(cell.x, 0.5f, cell.y);
             Instantiate(collectiblePrefab, pos, Quaternion.identity, transform);
@@ -253,25 +228,34 @@ public class MazeGenerator : MonoBehaviour
         {
             int randomIndex = Random.Range(0, freeCells.Count);
             Vector2Int cell = freeCells[randomIndex];
-            freeCells.RemoveAt(randomIndex);
+            freeCells.RemoveAt(randomIndex); // Odebereme buňku, aby se předešlo překrytí
 
-            Vector3 pos = new Vector3(cell.x, 1f, cell.y);
-            Instantiate(enemyPrefab, pos, Quaternion.identity, transform);
+            Vector3 pos = new Vector3(cell.x, 0, cell.y);
+            GameObject enemy = Instantiate(enemyPrefab, pos, Quaternion.identity, transform);
+            NavMeshAgent agent = enemy.GetComponent<NavMeshAgent>();
+            if (agent != null)
+            {
+                NavMeshHit hit;
+                if (NavMesh.SamplePosition(pos, out hit, 1f, NavMesh.AllAreas))
+                {
+                    enemy.transform.position = hit.position;
+                }
+            }
         }
     }
 
     void PlaceChairs()
     {
-        if (chairPrefab == null || freeCells.Count == 0) return;
+        if (tablePrefab == null || freeCells.Count == 0) return;
 
-        for (int i = 0; i < numberOfChairs && freeCells.Count > 0; i++)
+        for (int i = 0; i < numberOfTables && freeCells.Count > 0; i++)
         {
             int randomIndex = Random.Range(0, freeCells.Count);
             Vector2Int cell = freeCells[randomIndex];
-            freeCells.RemoveAt(randomIndex);
+            freeCells.RemoveAt(randomIndex); // Odebereme buňku, aby se předešlo překrytí
 
-            Vector3 pos = new Vector3(cell.x, 1f, cell.y);
-            Instantiate(chairPrefab, pos, Quaternion.identity, transform);
+            Vector3 pos = new Vector3(cell.x, 0f, cell.y);
+            Instantiate(tablePrefab, pos, Quaternion.identity, transform);
         }
     }
 

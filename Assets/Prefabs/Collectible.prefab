@@ -68,6 +68,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: Collectible
       objectReference: {fileID: 0}
+    - target: {fileID: 919132149155446097, guid: e8f34b9b0cfb46742a4d3e6197437a4a, type: 3}
+      propertyPath: m_TagString
+      value: Collectible
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -81,6 +85,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e8f34b9b0cfb46742a4d3e6197437a4a, type: 3}
       insertIndex: -1
       addedObject: {fileID: 6918614843958977589}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: e8f34b9b0cfb46742a4d3e6197437a4a, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -7273532895149083475}
   m_SourcePrefab: {fileID: 100100000, guid: e8f34b9b0cfb46742a4d3e6197437a4a, type: 3}
 --- !u!1 &3339500783647577695 stripped
 GameObject:
@@ -147,3 +154,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5ca125d133b33f943959683f2a19e900, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &-7273532895149083475
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3339500783647577695}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e3fdca004f2d45fe8abbed571a8abd5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_SerializedVersion: 0
+  m_OverrideArea: 1
+  m_Area: 1
+  m_OverrideGenerateLinks: 0
+  m_GenerateLinks: 0
+  m_IgnoreFromBuild: 0
+  m_ApplyToChildren: 1
+  m_AffectedAgents: ffffffff
