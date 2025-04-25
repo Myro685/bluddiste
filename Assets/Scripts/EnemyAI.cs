@@ -2,25 +2,28 @@ using UnityEngine;
 using UnityEngine.AI;
 using System.Collections.Generic;
 
+/// <summary>
+/// AI skript pro nepřítele – patroluje, detekuje hráče, pronásleduje a útočí.
+/// </summary>
 public class EnemyAI : MonoBehaviour
 {
-    public float detectionRange = 5f;
-    public float chaseSpeed = 4f;
-    public float patrolSpeed = 3f;
-    public float patrolWaitTime = 2f;
-    public float attackRange = 1f;
-    public float attackDamage = 10f;
-    public float attackCooldown = 1f;
+    public float detectionRange = 5f;      // Vzdálenost, na kterou nepřítel detekuje hráče
+    public float chaseSpeed = 4f;          // Rychlost při pronásledování hráče
+    public float patrolSpeed = 3f;         // Rychlost při hlídkování
+    public float patrolWaitTime = 2f;      // Čas čekání na patrolovacím bodě
+    public float attackRange = 1f;         // Vzdálenost, na kterou může nepřítel zaútočit
+    public float attackDamage = 10f;       // Poškození způsobené útokem
+    public float attackCooldown = 1f;      // Časový odstup mezi útoky
 
-    private Transform player;
-    private NavMeshAgent agent;
-    private PlayerController playerController;
-    private Vector3 targetPosition;
-    private float waitTimer;
-    private bool isChasing;
-    private bool wasChasingLastFrame;
-    private float lastAttackTime;
-    private List<Vector2Int> patrolPoints;
+    private Transform player;              // Reference na hráče
+    private NavMeshAgent agent;            // NavMesh agent pro pohyb
+    private PlayerController playerController; // Reference na skript hráče
+    private Vector3 targetPosition;        // Aktuální cíl pro pohyb
+    private float waitTimer;               // Časovač čekání na patrolovacím bodě
+    private bool isChasing;                // Zda právě pronásleduje hráče
+    private bool wasChasingLastFrame;      // Zda pronásledoval hráče v minulém snímku
+    private float lastAttackTime;          // Čas posledního útoku
+    private List<Vector2Int> patrolPoints; // Seznam bodů pro hlídkování
 
     void Start()
     {
@@ -38,14 +41,14 @@ public class EnemyAI : MonoBehaviour
         agent.speed = patrolSpeed;
         agent.stoppingDistance = 0.5f;
 
-        SetNewPatrolTarget();
+        SetNewPatrolTarget(); // Nastaví první patrolovací bod
     }
 
     void Update()
     {
         if (patrolPoints == null || patrolPoints.Count == 0) return;
 
-        bool canSeePlayer = CanSeePlayer();
+        bool canSeePlayer = CanSeePlayer(); // Zjistí, zda vidí hráče
         if (canSeePlayer)
         {
             isChasing = true;
@@ -55,7 +58,7 @@ public class EnemyAI : MonoBehaviour
         {
             if (isChasing && wasChasingLastFrame)
             {
-                SetNewPatrolTarget();
+                SetNewPatrolTarget(); // Pokud přestal pronásledovat, nastaví nový patrolovací bod
             }
             isChasing = false;
             agent.speed = patrolSpeed;
@@ -63,16 +66,19 @@ public class EnemyAI : MonoBehaviour
 
         if (isChasing)
         {
-            ChasePlayer();
+            ChasePlayer(); // Pronásleduje hráče
         }
         else
         {
-            Patrol();
+            Patrol(); // Hlídkuje
         }
 
         wasChasingLastFrame = isChasing;
     }
 
+    /// <summary>
+    /// Zjistí, zda nepřítel vidí hráče (není schovaný a je v dosahu + není za zdí).
+    /// </summary>
     bool CanSeePlayer()
     {
         if (playerController.IsHiding())
@@ -97,6 +103,9 @@ public class EnemyAI : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Pronásleduje hráče a útočí, pokud je dostatečně blízko.
+    /// </summary>
     void ChasePlayer()
     {
         agent.SetDestination(player.position);
@@ -108,6 +117,9 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Hlídkuje mezi body v bludišti.
+    /// </summary>
     void Patrol()
     {
         float distanceToTarget = Vector3.Distance(transform.position, targetPosition);
@@ -124,6 +136,9 @@ public class EnemyAI : MonoBehaviour
         agent.SetDestination(targetPosition);
     }
 
+    /// <summary>
+    /// Nastaví nový patrolovací bod.
+    /// </summary>
     void SetNewPatrolTarget()
     {
         if (patrolPoints.Count > 0)
@@ -140,15 +155,18 @@ public class EnemyAI : MonoBehaviour
             }
             else
             {
-                SetNewPatrolTarget();
+                SetNewPatrolTarget(); // Pokud není bod na NavMesh, zkusí jiný
             }
         }
     }
 
+    /// <summary>
+    /// Útok na hráče.
+    /// </summary>
     void Attack()
     {
         lastAttackTime = Time.time;
         Debug.Log("Nepřítel útočí na hráče! Poškození: " + attackDamage);
-        playerController.TakeDamage(attackDamage); // Poškodíme hráče
+        playerController.TakeDamage(attackDamage); 
     }
 }

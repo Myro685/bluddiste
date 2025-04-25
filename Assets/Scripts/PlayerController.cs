@@ -3,50 +3,51 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
 
+/// <summary>
+/// Řídí pohyb hráče, sbírání předmětů, zdraví, schovávání, výhru/prohru a UI.
+/// </summary>
 public class PlayerController : MonoBehaviour
 {
-    public float moveSpeed = 5f;
-    public float mouseSensitivity = 2f;
-    public Transform playerCamera;
-    public float wallCheckDistance = 0.6f;
+    public float moveSpeed = 5f;                  // Základní rychlost pohybu
+    public float mouseSensitivity = 2f;           // Citlivost myši
+    public Transform playerCamera;                // Kamera hráče
+    public float wallCheckDistance = 0.6f;        // Vzdálenost pro kontrolu kolize se zdí
 
-    private Rigidbody rb;
-    private float xRotation = 0f;
-    private CapsuleCollider playerCollider;
-    private bool isHiding = false;
-    private Vector3 originalColliderCenter;
-    private float originalColliderHeight;
+    private Rigidbody rb;                         // Rigidbody hráče
+    private float xRotation = 0f;                 // Rotace kamery nahoru/dolů
+    private CapsuleCollider playerCollider;       // Collider hráče
+    private bool isHiding = false;                // Zda je hráč schovaný
+    private Vector3 originalColliderCenter;       // Původní střed collideru
+    private float originalColliderHeight;         // Původní výška collideru
 
-    // Zdraví hráče
-    public float maxHealth = 100f;
-    private float currentHealth;
-    private bool isDead = false;
+    public float maxHealth = 100f;                // Maximální zdraví hráče
+    private float currentHealth;                  // Aktuální zdraví
+    private bool isDead = false;                  // Zda je hráč mrtvý
 
-    // Sprint a shake kamery
-    private float baseSpeed;
-    private bool isSprinting = false;
-    public float sprintMultiplier = 2f;
-    public float shakeMagnitude = 0.1f;
-    public float shakeSpeed = 10f;
-    private Vector3 originalCameraPosition;
+    private float baseSpeed;                      // Uložená základní rychlost
+    private bool isSprinting = false;             // Zda hráč sprintuje
+    public float sprintMultiplier = 2f;           // Násobitel rychlosti při sprintu
+    public float shakeMagnitude = 0.1f;           // Síla třesení kamery při sprintu
+    public float shakeSpeed = 10f;                // Rychlost třesení kamery
+    private Vector3 originalCameraPosition;       // Výchozí pozice kamery
 
-    // Posmrtná obrazovka
-    public GameObject deathScreen;
-    public Button restartButton;
+    public GameObject deathScreen;                // UI obrazovka smrti
+    public Button restartButton;                  // Tlačítko pro restart
 
-    // Výherní obrazovka
-    public GameObject winScreen;
-    public Button backToMenuButton;
-    private bool hasWon = false;
-    private int collectedItems = 0;
-    private int maxCollectibles = 5;
+    public GameObject winScreen;                  // UI obrazovka výhry
+    public Button backToMenuButton;               // Tlačítko pro návrat do menu
+    public Button backToMainMenuButton;           // Alternativní tlačítko pro návrat do menu
+    private bool hasWon = false;                  // Zda hráč vyhrál
+    private int collectedItems = 0;               // Počet sebraných předmětů
+    private int maxCollectibles = 5;              // Maximální počet předmětů k sebrání
 
-    // UI pro zobrazení collectibles během hry
-    public TextMeshProUGUI collectiblesCounter;
+    public GameObject pauseCanvas;                // UI panel pro pauzu
+    private bool isPaused = false;                // Zda je hra pozastavená
 
-    // Zvuk pro sbírání collectibles
-    private AudioSource audioSource;
-    public AudioClip collectSound;
+    public TextMeshProUGUI collectiblesCounter;   // UI text pro počítadlo předmětů
+
+    private AudioSource audioSource;              // AudioSource pro zvuky hráče
+    public AudioClip collectSound;                // Zvuk při sebrání předmětu
 
     void Start()
     {
@@ -65,12 +66,12 @@ public class PlayerController : MonoBehaviour
         baseSpeed = moveSpeed;
         originalCameraPosition = playerCamera.localPosition;
 
-        // Nastavení AudioSource pro sbírání collectibles
+        // Nastavení audia
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
         audioSource.loop = false;
 
-        // Nastavení posmrtné obrazovky
+        // Nastavení UI a tlačítek
         if (deathScreen != null)
         {
             deathScreen.SetActive(false);
@@ -89,7 +90,6 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("RestartButton není přiřazený v PlayerController!");
         }
 
-        // Nastavení výherní obrazovky
         if (winScreen != null)
         {
             winScreen.SetActive(false);
@@ -103,13 +103,26 @@ public class PlayerController : MonoBehaviour
         {
             backToMenuButton.onClick.AddListener(BackToMenu);
         }
+        if (backToMainMenuButton != null)
+        {
+            backToMainMenuButton.onClick.AddListener(BackToMenu);
+        }
         else
         {
             Debug.LogError("BackToMenuButton není přiřazený v PlayerController!");
         }
 
-        // Nastavení maximálního počtu collectibles podle MazeGenerator
-        MazeGenerator mazeGenerator = FindObjectOfType<MazeGenerator>();
+        if (pauseCanvas != null)
+        {
+            pauseCanvas.SetActive(false);
+        }
+        else
+        {
+            Debug.LogError("PauseCanvas není přiřazený v PlayerController!");
+        }
+
+        // Získání počtu collectible z MazeGeneratoru
+        MazeGenerator mazeGenerator = Object.FindFirstObjectByType<MazeGenerator>();
         if (mazeGenerator != null)
         {
             maxCollectibles = mazeGenerator.numberOfCollectibles;
@@ -120,7 +133,6 @@ public class PlayerController : MonoBehaviour
             Debug.LogError("MazeGenerator nenalezen ve scéně!");
         }
 
-        // Inicializace UI textu pro collectibles
         UpdateCollectiblesUI();
         if (collectiblesCounter != null)
         {
@@ -134,8 +146,16 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
-        if (isDead || hasWon) return;
+        // Pauza
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            TogglePause();
+        }
 
+        // Pokud je hráč mrtvý, vyhrál nebo je pauza, nic nedělej
+        if (isDead || hasWon || isPaused) return;
+
+        // Ovládání kamery myší
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
@@ -145,6 +165,7 @@ public class PlayerController : MonoBehaviour
 
         transform.Rotate(Vector3.up * mouseX);
 
+        // Schovávání pod stoličku
         if (Input.GetKeyDown(KeyCode.E))
         {
             if (isHiding)
@@ -157,6 +178,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
+        // Sprint
         if (Input.GetKeyDown(KeyCode.LeftShift))
         {
             isSprinting = true;
@@ -168,6 +190,7 @@ public class PlayerController : MonoBehaviour
             moveSpeed = baseSpeed;
         }
 
+        // Efekt třesení kamery při sprintu
         if (isSprinting && !isHiding)
         {
             ApplyCameraShake();
@@ -180,16 +203,18 @@ public class PlayerController : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (isDead || hasWon) return;
+        if (isDead || hasWon || isPaused) return;
 
         if (!isHiding)
         {
+            // Pohyb hráče
             float moveX = Input.GetAxisRaw("Horizontal");
             float moveZ = Input.GetAxisRaw("Vertical");
 
             Vector3 moveDirection = transform.forward * moveZ + transform.right * moveX;
             moveDirection = moveDirection.normalized * moveSpeed;
 
+            // Kontrola kolize se zdí
             if (moveDirection.magnitude > 0)
             {
                 RaycastHit hit;
@@ -216,18 +241,19 @@ public class PlayerController : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
+        // Detekce stoličky pro schování
         if (other.CompareTag("Chair"))
         {
             Debug.Log("Můžeš se schovat! Stiskni E.");
         }
+        // Detekce a sbírání collectible
         else if (other.CompareTag("Collectible"))
         {
             Debug.Log("Detekován Collectible!");
             collectedItems++;
             Destroy(other.gameObject);
             Debug.Log($"Sesbíráno {collectedItems}/{maxCollectibles} předmětů!");
-            
-            // Přehrání zvuku při sebrání collectible
+
             if (collectSound != null)
             {
                 audioSource.PlayOneShot(collectSound);
@@ -248,12 +274,14 @@ public class PlayerController : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
+        // Opustil oblast stoličky
         if (other.CompareTag("Chair") && !isHiding)
         {
             Debug.Log("Opustil jsi oblast stoličky.");
         }
     }
 
+    // Pokusí se schovat, pokud je poblíž stolička
     void TryEnterHiding()
     {
         Collider[] colliders = Physics.OverlapSphere(transform.position, 1f);
@@ -267,6 +295,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    // Schová hráče pod stoličku
     void EnterHiding()
     {
         isHiding = true;
@@ -277,6 +306,7 @@ public class PlayerController : MonoBehaviour
         playerCamera.localPosition = new Vector3(0, 0.5f, 0);
     }
 
+    // Vyleze ze schovky
     void ExitHiding()
     {
         isHiding = false;
@@ -287,11 +317,13 @@ public class PlayerController : MonoBehaviour
         playerCamera.localPosition = new Vector3(0, 1.5f, 0);
     }
 
+    // Vrací, zda je hráč schovaný
     public bool IsHiding()
     {
         return isHiding;
     }
 
+    // Odečte zdraví hráči
     public void TakeDamage(float damage)
     {
         if (isDead || hasWon) return;
@@ -305,6 +337,7 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    // Smrt hráče
     void Die()
     {
         isDead = true;
@@ -325,8 +358,12 @@ public class PlayerController : MonoBehaviour
 
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
+        Time.timeScale = 0f; 
+       
+        DisableEnemySounds();
     }
 
+    // Výhra hráče
     void WinGame()
     {
         hasWon = true;
@@ -346,33 +383,78 @@ public class PlayerController : MonoBehaviour
 
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
+
+        DisableEnemySounds();
     }
 
+    // Vypne zvuky všech nepřátel ve scéně
+    void DisableEnemySounds()
+    {
+        EnemyController[] enemies = FindObjectsByType<EnemyController>(FindObjectsSortMode.None);
+        foreach (EnemyController enemy in enemies)
+        {
+            enemy.StopSound();
+        }
+        Debug.Log("Všechny zvuky nepřátel byly vypnuty.");
+    }
+
+    // Přepíná pauzu
+    void TogglePause()
+    {
+        isPaused = !isPaused;
+
+        if (isPaused)
+        {
+            Time.timeScale = 0f; 
+            pauseCanvas.SetActive(true);
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            Debug.Log("Hra pozastavena.");
+        }
+        else
+        {
+            Time.timeScale = 1f; 
+            pauseCanvas.SetActive(false);
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+            Debug.Log("Hra odpauzována.");
+        }
+    }
+
+    // Restartuje aktuální scénu
     void RestartGame()
     {
+        Time.timeScale = 1f; 
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
     }
 
+    // Návrat do hlavního menu
     void BackToMenu()
     {
+        Time.timeScale = 1f; 
         SceneManager.LoadScene("MainMenu");
     }
 
+    // Vrací aktuální zdraví hráče
     public float GetCurrentHealth()
     {
         return currentHealth;
     }
 
+    // Vrací maximální zdraví hráče
     public float GetMaxHealth()
     {
         return maxHealth;
     }
 
+    // Obnoví kurzor a čas při zničení objektu hráče
     void OnDestroy()
     {
         Cursor.lockState = CursorLockMode.None;
+        Time.timeScale = 1f; 
     }
 
+    // Efekt třesení kamery při sprintu
     void ApplyCameraShake()
     {
         float shakeOffsetX = (Mathf.PerlinNoise(Time.time * shakeSpeed, 0f) - 0.5f) * shakeMagnitude;
@@ -382,6 +464,7 @@ public class PlayerController : MonoBehaviour
         playerCamera.localPosition = originalCameraPosition + shakeOffset;
     }
 
+    // Aktualizuje UI počítadla sebraných předmětů
     void UpdateCollectiblesUI()
     {
         if (collectiblesCounter != null)

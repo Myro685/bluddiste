@@ -1,0 +1,4 @@
+repository "bluddiste/bluddiste@7971749071821@cloud"
+  path "/"
+    br "/main"
+    co "/main"

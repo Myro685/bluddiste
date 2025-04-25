@@ -3,25 +3,28 @@ using UnityEngine.AI;
 using System.Collections.Generic;
 using Unity.AI.Navigation;
 
+/// <summary>
+/// Generuje bludiště, místnosti, rozmísťuje objekty a aktualizuje NavMesh.
+/// </summary>
 public class MazeGenerator : MonoBehaviour
 {
-    public int width = 20;
-    public int height = 20;
-    public int corridorWidth = 2;
-    public int numberOfRooms = 3;
-    public int minRoomSize = 3;
-    public int maxRoomSize = 5;
-    public GameObject wallPrefab;
-    public GameObject collectiblePrefab;
-    public GameObject enemyPrefab;
-    public GameObject tablePrefab;
-    public int numberOfCollectibles = 5;
-    public int numberOfEnemies = 3;
-    public int numberOfTables = 2;
-    private int[,] maze;
-    private List<Vector2Int> freeCells;
-    private List<RectInt> rooms;
-    private NavMeshSurface navMeshSurface;
+    public int width = 20;                    // Šířka bludiště v buňkách
+    public int height = 20;                   // Výška bludiště v buňkách
+    public int corridorWidth = 2;             // Šířka chodby v buňkách
+    public int numberOfRooms = 3;             // Počet místností
+    public int minRoomSize = 3;               // Minimální velikost místnosti
+    public int maxRoomSize = 5;               // Maximální velikost místnosti
+    public GameObject wallPrefab;             // Prefab zdi
+    public GameObject collectiblePrefab;      // Prefab sběratelného předmětu
+    public GameObject enemyPrefab;            // Prefab nepřítele
+    public GameObject tablePrefab;            // Prefab stolu (židle)
+    public int numberOfCollectibles = 5;      // Počet sběratelných předmětů
+    public int numberOfEnemies = 3;           // Počet nepřátel
+    public int numberOfTables = 2;            // Počet stolů (židlí)
+    private int[,] maze;                      // Pole reprezentující bludiště (0 = volno, 1 = zeď)
+    private List<Vector2Int> freeCells;       // Seznam volných buněk pro umístění objektů
+    private List<RectInt> rooms;              // Seznam místností
+    private NavMeshSurface navMeshSurface;    // NavMeshSurface pro generování NavMesh
 
     void Start()
     {
@@ -33,16 +36,19 @@ public class MazeGenerator : MonoBehaviour
         }
 
         rooms = new List<RectInt>();
-        GenerateMaze();
-        GenerateRooms();
-        BuildMaze();
-        PlaceCollectibles();
-        PlaceEnemies();
-        PlaceChairs();
+        GenerateMaze();         // Vygeneruje základní bludiště
+        GenerateRooms();        // Přidá místnosti
+        BuildMaze();            // Postaví zdi podle pole
+        PlaceCollectibles();    // Rozmístí sběratelné předměty
+        PlaceEnemies();         // Rozmístí nepřátele
+        PlaceChairs();          // Rozmístí stoly/židle
 
-        UpdateNavMesh();
+        UpdateNavMesh();        // Aktualizuje NavMesh pro AI
     }
 
+    /// <summary>
+    /// Vygeneruje základní bludiště pomocí backtracking algoritmu.
+    /// </summary>
     void GenerateMaze()
     {
         int gridWidth = (width / corridorWidth) + 2;
@@ -52,10 +58,11 @@ public class MazeGenerator : MonoBehaviour
         freeCells = new List<Vector2Int>();
         for (int x = 0; x < gridWidth; x++)
             for (int y = 0; y < gridHeight; y++)
-                maze[x, y] = 1;
+                maze[x, y] = 1; // Všechny buňky jsou zdi
 
-        RecursiveBacktrack(1, 1);
+        RecursiveBacktrack(1, 1); // Začátek generování
 
+        // Okrajové zdi
         for (int x = 0; x < gridWidth; x++)
         {
             maze[x, 0] = 1;
@@ -67,9 +74,12 @@ public class MazeGenerator : MonoBehaviour
             maze[gridWidth - 1, y] = 1;
         }
 
-        UpdateFreeCells();
+        UpdateFreeCells(); // Aktualizuje seznam volných buněk
     }
 
+    /// <summary>
+    /// Vygeneruje místnosti a propojí je s bludištěm.
+    /// </summary>
     void GenerateRooms()
     {
         for (int i = 0; i < numberOfRooms; i++)
@@ -81,6 +91,7 @@ public class MazeGenerator : MonoBehaviour
 
             rooms.Add(new RectInt(roomX, roomY, roomWidth, roomHeight));
 
+            // Vyčistí prostor pro místnost
             for (int x = roomX; x < roomX + roomWidth; x++)
             {
                 for (int y = roomY; y < roomY + roomHeight; y++)
@@ -89,12 +100,15 @@ public class MazeGenerator : MonoBehaviour
                 }
             }
 
-            ConnectRoomToMaze(roomX, roomY, roomWidth, roomHeight);
+            ConnectRoomToMaze(roomX, roomY, roomWidth, roomHeight); // Propojí místnost s bludištěm
         }
 
         UpdateFreeCells();
     }
 
+    /// <summary>
+    /// Propojí místnost s bludištěm vytvořením otvoru ve zdi.
+    /// </summary>
     void ConnectRoomToMaze(int roomX, int roomY, int roomWidth, int roomHeight)
     {
         int side = Random.Range(0, 4);
@@ -127,6 +141,9 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Rekurzivní backtracking algoritmus pro generování bludiště.
+    /// </summary>
     void RecursiveBacktrack(int x, int y)
     {
         maze[x, y] = 0;
@@ -145,6 +162,7 @@ public class MazeGenerator : MonoBehaviour
             int newX = x + dx;
             int newY = y + dy;
 
+            // Pokud je sousední buňka uvnitř a je zeď, pokračuj rekurzí
             if (newX >= 1 && newX < maze.GetLength(0) - 1 && newY >= 1 && newY < maze.GetLength(1) - 1 && maze[newX, newY] == 1)
             {
                 maze[x + dx / 2, y + dy / 2] = 0;
@@ -153,11 +171,13 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Aktualizuje seznam volných buněk (pro umístění objektů).
+    /// </summary>
     void UpdateFreeCells()
     {
         freeCells.Clear();
 
-        // Upravíme logiku tak, aby zahrnovala všechny volné buňky (včetně chodeb)
         for (int x = corridorWidth; x < width + corridorWidth; x++)
         {
             for (int y = corridorWidth; y < height + corridorWidth; y++)
@@ -173,6 +193,9 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Zamíchá pole (Fisher-Yates shuffle).
+    /// </summary>
     void Shuffle(int[] array)
     {
         for (int i = array.Length - 1; i > 0; i--)
@@ -184,6 +207,9 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Vytvoří GameObjecty zdí podle pole bludiště.
+    /// </summary>
     void BuildMaze()
     {
         for (int x = 0; x < width + 2 * corridorWidth; x++)
@@ -205,6 +231,9 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Rozmístí sběratelné předměty na volná místa.
+    /// </summary>
     void PlaceCollectibles()
     {
         if (collectiblePrefab == null || freeCells.Count == 0) return;
@@ -213,13 +242,16 @@ public class MazeGenerator : MonoBehaviour
         {
             int randomIndex = Random.Range(0, freeCells.Count);
             Vector2Int cell = freeCells[randomIndex];
-            freeCells.RemoveAt(randomIndex); // Odebereme buňku, aby se předešlo překrytí
+            freeCells.RemoveAt(randomIndex); 
 
             Vector3 pos = new Vector3(cell.x, 0.5f, cell.y);
             Instantiate(collectiblePrefab, pos, Quaternion.identity, transform);
         }
     }
 
+    /// <summary>
+    /// Rozmístí nepřátele na volná místa a nastaví jejich pozici na NavMesh.
+    /// </summary>
     void PlaceEnemies()
     {
         if (enemyPrefab == null || freeCells.Count == 0) return;
@@ -228,7 +260,7 @@ public class MazeGenerator : MonoBehaviour
         {
             int randomIndex = Random.Range(0, freeCells.Count);
             Vector2Int cell = freeCells[randomIndex];
-            freeCells.RemoveAt(randomIndex); // Odebereme buňku, aby se předešlo překrytí
+            freeCells.RemoveAt(randomIndex);
 
             Vector3 pos = new Vector3(cell.x, 0, cell.y);
             GameObject enemy = Instantiate(enemyPrefab, pos, Quaternion.identity, transform);
@@ -244,6 +276,9 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Rozmístí stoly/židle na volná místa.
+    /// </summary>
     void PlaceChairs()
     {
         if (tablePrefab == null || freeCells.Count == 0) return;
@@ -252,13 +287,16 @@ public class MazeGenerator : MonoBehaviour
         {
             int randomIndex = Random.Range(0, freeCells.Count);
             Vector2Int cell = freeCells[randomIndex];
-            freeCells.RemoveAt(randomIndex); // Odebereme buňku, aby se předešlo překrytí
+            freeCells.RemoveAt(randomIndex); 
 
             Vector3 pos = new Vector3(cell.x, 0f, cell.y);
             Instantiate(tablePrefab, pos, Quaternion.identity, transform);
         }
     }
 
+    /// <summary>
+    /// Aktualizuje NavMesh pro AI navigaci.
+    /// </summary>
     void UpdateNavMesh()
     {
         if (navMeshSurface != null)
@@ -268,6 +306,9 @@ public class MazeGenerator : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Vrací kopii seznamu volných buněk (pro AI patrolování apod.).
+    /// </summary>
     public List<Vector2Int> GetFreeCells()
     {
         return new List<Vector2Int>(freeCells);
