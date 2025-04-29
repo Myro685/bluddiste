@@ -737,8 +737,8 @@ MonoBehaviour:
   m_text: "Z\xE1kladn\xED informace o h\u0159e:\r\n- Proch\xE1zej bludi\u0161t\u011B
     a sb\xEDrej diamanty.\r\n- D\xE1vej pozor na nep\u0159\xE1tele, kte\u0159\xED
     t\u011B mohou zab\xEDt!\r\n\nOvl\xE1d\xE1n\xED:\r\n- Pohyb: WASD\r\n- Sprint:
-    Left Shift\r\n- Rozhl\xED\u017Een\xED: My\u0161\r\n- Schovat se: E (pod stolem)\n\nSemestr\xE1ln\xED
-    projekt Bludi\u0161t\u011B\nMiroslav Grund PGRF2 29.4.2025"
+    Left Shift\r\n- Rozhl\xED\u017Een\xED: My\u0161\r\n- Schovat se: E (pod stolem)\n
+    \nSemestr\xE1ln\xED projekt B8 Bludi\u0161t\u011B\nMiroslav Grund PGRF2 29.4.2025"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
